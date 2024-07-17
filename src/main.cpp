@@ -224,7 +224,7 @@ BLYNK_WRITE(V1)
   Serial.print("HOME SCADA V1: ");
   cblynk("[i] SCADA_CMD: APPLIANCE 1: "+String(pinValue)+"");
   Serial.println(pinValue);
-  digitalWrite(BUZZER,!pinValue);
+  digitalWrite(BUZZER,pinValue);
 
 }
 
@@ -403,5 +403,5 @@ void loop() {
   // Time's timer
   t_timer.run();
   logger_timer.run();
-  
+
 }
