@@ -16,18 +16,6 @@ void lcdWr(int x, int y, int ts, String m)
 }
 
 
-// Decorative Blink #2 GPIO
-
-void doblink()
-{
-  digitalWrite(BUZZER,HIGH);
-  delay(100);
-  digitalWrite(BUZZER,LOW);
-  delay(1000);
-}
-
-
-
 // This function sends Arduino's up time every second to Virtual Pin (5) and shows it to the OLED Display
 void sendSensor()
 {
@@ -236,7 +224,7 @@ BLYNK_WRITE(V1)
   Serial.print("HOME SCADA V1: ");
   cblynk("[i] SCADA_CMD: APPLIANCE 1: "+String(pinValue)+"");
   Serial.println(pinValue);
-  digitalWrite(MCU_1,!pinValue);
+  digitalWrite(BUZZER,!pinValue);
 
 }
 
@@ -403,7 +391,6 @@ void setup() {
   
 
   logger_timer.setInterval(60000L,log_t_h);
-  doblink_timer.setInterval(1000L,doblink);
 
   
 
@@ -416,6 +403,5 @@ void loop() {
   // Time's timer
   t_timer.run();
   logger_timer.run();
-  doblink_timer.run();
-
+  
 }

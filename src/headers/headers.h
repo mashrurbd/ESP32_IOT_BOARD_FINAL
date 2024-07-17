@@ -37,7 +37,6 @@ DHT dht(DHTPIN, DHTTYPE);
 BlynkTimer timer;
 BlynkTimer t_timer;
 BlynkTimer logger_timer;
-BlynkTimer doblink_timer;
 
 
 
