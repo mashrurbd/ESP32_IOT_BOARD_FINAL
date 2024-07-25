@@ -1,5 +1,4 @@
 #include <headers/headers.h>
-#include <logos/afif.h>
 // Write to Blynk String 
 void cblynk(String msg)
 {
@@ -208,10 +207,11 @@ void log_t_h()
 // Get the previous states of the pins
 BLYNK_CONNECTED()
 {
-  display.drawBitmap(0, 0, afif, 128, 64, WHITE);
-  display.display();
-  delay(1000);
+  digitalWrite(BUZZER,HIGH);
+  lcdWr(30,30,2,"\\~(^_^)~/");
+  delay(2000);
   display.clearDisplay();
+  digitalWrite(BUZZER,LOW);
   Blynk.syncAll();  
   // Start the time sync
   t_timer.setInterval(1000L, printLocalTime);
@@ -323,6 +323,10 @@ BLYNK_WRITE(V0)
   {
     
   }
+  else if (cmd=="/memory")
+  {
+    cblynk("Free memory: "+String(ESP.getFreeHeap())+"");
+  }
   else 
   {
     cblynk("Invalid command, send /help for a list of available commands.");
@@ -358,8 +362,7 @@ void setup() {
   display.setTextColor(WHITE);
   display.setCursor(30,30);
   display.setTextSize(2);
-  // display.drawBitmap
-  display.print("[...]");
+  display.print("[x_x]");
   display.display();
 
 
