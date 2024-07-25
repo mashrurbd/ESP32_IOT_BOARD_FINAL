@@ -111,95 +111,10 @@ void printLocalTime()
 }
 
 
-// Check if pre-defined folders exist
-void check_if_folders_exists()
-{
-  // Check /events 
-  if (!SD.exists("/events"))
-  {
-    Serial.println("[i] Creating: /events");
-  }
-  else if (!SD.exists("/sensor_logs"))
-  {
-    Serial.println("[i] Creating: /sensor_logs");
-  }
-  else 
-  {
-    Serial.println("[i] Folder Checks: PASSED, OK");
-  }
-}
-// Write data to SD Card
-void wrdata(String folderName,String filename,String datatext)
-{
-
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
-    Serial.println("Failed to obtain time");
-    return;
-  }
-
-  char hh[3];
-  char mm[3];
-  char ss[3];
-  char timeWeekDay[10];
-  char dddd[3];
-  char mmmm[10];
-  char yyyy[5];
-  strftime(hh,3, "%I", &timeinfo);
-  strftime(mm,3, "%M", &timeinfo);
-  strftime(ss,3, "%S", &timeinfo);
-  strftime(timeWeekDay,10, "%A", &timeinfo);
-  strftime(dddd,3, "%d", &timeinfo);
-  strftime(mmmm,10, "%B", &timeinfo);
-  strftime(yyyy,10, "%Y", &timeinfo);
 
 
-  
-  File testFile = SD.open("/"+folderName+"/"+filename+"", FILE_APPEND);
-  if (testFile) 
-  {
-    // String data_text = ""+dddd+"/"+mmmm+"/"+yyyy+","+hh+":"+mm+":"+ss+","+datatext+"";
-    testFile.print(dddd);
-    testFile.print("-");
-    testFile.print(mmmm);
-    testFile.print("-");
-    testFile.print(yyyy);
-    testFile.print(",");
-    testFile.print(hh);
-    testFile.print(":");
-    testFile.print(mm);
-    testFile.print(":");
-    testFile.print(ss);
-    testFile.print(",");
-    testFile.print(datatext);
-    testFile.println(";");
-    testFile.close();
-    Serial.println("[i] Success, data written to /"+filename+"");
-  } 
-  else 
-  {
-    Serial.println("[x] Error, couldn't not open /"+filename+"");
 
-  }
-  
-}
 
-// Data logger for temp, humidity
-void log_t_h()
-{
-  float t = dht.readTemperature();
-
-  if (isnan(t)) 
-  {
-    return;
-  }
-  else 
-  {
-    wrdata("sensor_logs","temp_log.txt",""+String(t)+"");
-    return;
-  }
-
-}
 
 
 
@@ -208,10 +123,8 @@ void log_t_h()
 // Get the previous states of the pins
 BLYNK_CONNECTED()
 {
-  display.drawBitmap(0, 0, afif, 128, 64, WHITE);
-  display.display();
   delay(1000);
-  display.clearDisplay();
+  lcdWr(30,30,2,"(*_*)");
   Blynk.syncAll();  
   // Start the time sync
   t_timer.setInterval(1000L, printLocalTime);
@@ -355,11 +268,7 @@ void setup() {
   }
   delay(1000);
   display.clearDisplay();
-  display.setTextColor(WHITE);
-  display.setCursor(30,30);
-  display.setTextSize(2);
-  // display.drawBitmap
-  display.print("[...]");
+  display.drawBitmap(0, 0,  afif, 128, 64, 1);
   display.display();
 
 
@@ -369,27 +278,10 @@ void setup() {
 
   timer.setInterval(2000L, sendSensor);
 
-  // Start server 
-  #if defined(ESP32)
-    SPIFFS.begin(true);
-    // SPI.begin(14, 2, 15);
-    if (!SD.begin(5)) {
-      Serial.println("SD Card Mount Failed");
-    }
-  #elif defined(ESP8266)
-    SPIFFS.begin();
-  #endif
-
-
-
-  check_if_folders_exists();
   cblynk("[i] Connected to server.");
   cblynk("[i] LOCAL_IP: "+WiFi.localIP().toString()+"");
   cblynk("[i] MAC_ADDRESS: "+WiFi.BSSIDstr()+"");
-  cblynk("[i] FTP Server Status: OKAY, Running.");
   
-
-  logger_timer.setInterval(60000L,log_t_h);
 
   
 
@@ -401,6 +293,5 @@ void loop() {
   timer.run();
   // Time's timer
   t_timer.run();
-  logger_timer.run();
 
 }
