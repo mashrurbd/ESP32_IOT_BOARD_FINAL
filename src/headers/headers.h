@@ -15,8 +15,8 @@
 #include <time.h>
 
 // SD Card Server Headers 
-#include <SD.h>
-#include <SPIFFS.h>
+// #include <SD.h>
+// #include <SPIFFS.h>
 
 
 // Defining MCU Pins 
@@ -25,6 +25,8 @@
 #define MCU_3 18
 #define MCU_4 19
 #define BUZZER 2
+#define sw_a 22
+#define sw_b 23
 
 Adafruit_SSD1306 display(128, 64, &Wire, -1); 
 
