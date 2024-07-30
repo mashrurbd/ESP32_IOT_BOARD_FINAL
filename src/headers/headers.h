@@ -25,8 +25,8 @@
 #define MCU_3 18
 #define MCU_4 19
 #define BUZZER 2
-#define sw_a 22
-#define sw_b 23
+#define sw_a 12
+#define sw_b 13
 
 Adafruit_SSD1306 display(128, 64, &Wire, -1); 
 
