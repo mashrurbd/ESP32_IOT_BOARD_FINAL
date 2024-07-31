@@ -101,18 +101,20 @@ void printLocalTime()
     display.clearDisplay();
     
     //Display Temperature
-    display.setTextSize(1);
-    display.setCursor(0,0);
-    display.print("Temperature: ");
     display.setTextSize(2);
-    display.setCursor(0,10);
+    display.setCursor(5,5);
+    display.print("Temperature");
+    display.drawCircle(118,5,3,WHITE);
+    display.setTextSize(3);
+    display.setCursor(5,15);
     display.print(t);
     display.print(" ");
-    display.setTextSize(1);
+    display.setTextSize(2);
     display.cp437(true);
     display.write(167);
-    display.setTextSize(2);
+    display.setTextSize(3);
     display.print("C");
+    display.drawRoundRect(1,1,126,62,5,WHITE);
     display.display();
   }
 }
