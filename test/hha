@@ -12,7 +12,6 @@ void cblynk(String msg)
 void lcdWr(int x, int y, int ts, String m)
 {
   display.clearDisplay();
-  display.setTextSize(ts);
   display.setCursor(x,y);
   display.print(m);
   display.display();
@@ -72,22 +71,22 @@ void printLocalTime()
 
   if ((ssint > 33) || (ssint < 30))
   {
-    display.setTextSize(2);
+    
     display.print(""+String(timeWeekDay)+"");
     display.setCursor(5,25);
-    display.setTextSize(1);
+
     display.print(""+String(dddd)+" "+String(mmmm)+" "+String(yyyy)+"");
     display.setCursor(5,45);
-    display.setTextSize(2);
+    
     if (ssint%2==0)
     {
       display.print(""+String(hh)+":"+String(mm)+":"+String(ss)+"");
-      display.drawRoundRect(1,1,126,62,5,WHITE);
+      
     }
     else 
     {
       display.print(""+String(hh)+" "+String(mm)+" "+String(ss)+"");
-      display.drawRoundRect(1,1,126,64,5,BLACK);
+      
 
     }
     display.display();
@@ -101,18 +100,20 @@ void printLocalTime()
     display.clearDisplay();
     
     //Display Temperature
-    display.setTextSize(1);
-    display.setCursor(0,0);
-    display.print("Temperature: ");
-    display.setTextSize(2);
-    display.setCursor(0,10);
+    
+    display.setCursor(5,5);
+    display.print("Temperature");
+    
+    
+    display.setCursor(5,15);
     display.print(t);
     display.print(" ");
-    display.setTextSize(1);
-    display.cp437(true);
+    
+    
     display.write(167);
-    display.setTextSize(2);
+    
     display.print("C");
+    
     display.display();
   }
 }
@@ -122,7 +123,7 @@ void printLocalTime()
 BLYNK_CONNECTED()
 {
   display.clearDisplay();
-  display.drawBitmap(0, 0,  ok_conn, 128, 64, 1);
+  
   display.display();
   delay(1000);
   display.clearDisplay();
@@ -248,16 +249,13 @@ void setup() {
 
 
   dht.begin();
+  display.begin();
 
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    for(;;);
-  }
   delay(1000);
   display.clearDisplay();
-  display.setTextColor(WHITE);
+  
   display.setCursor(30,30);
-  display.setTextSize(2);
+  
   // display.drawBitmap
   display.print("(*_*)");
   display.display();
@@ -284,4 +282,7 @@ void loop() {
   timer.run();
   // Time's timer
   t_timer.run();
+
+
+
 }

@@ -4,7 +4,6 @@
 #define BLYNK_AUTH_TOKEN "m7YWUPmMqkCWHNBL9ut7NhyLBQ-9eR_y"
 
 #include <Arduino.h>
-#include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <BlynkSimpleEsp32_SSL.h>
 #include <Wire.h>
@@ -25,8 +24,8 @@
 #define MCU_3 18
 #define MCU_4 19
 #define BUZZER 2
-#define sw_a 12
-#define sw_b 13
+#define sw_a 22
+#define sw_b 23
 
 Adafruit_SSD1306 display(128, 64, &Wire, -1); 
 
