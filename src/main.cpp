@@ -501,9 +501,9 @@ void setup()
 
 =======
   display.setCursor(30, 30);
-  display.setTextSize(2);
-  // display.drawBitmap
-  display.print("[...]");
+  display.setTextSize(1);
+  display.drawRoundRect(5,5,120,58,5,WHITE);
+  display.print("Booting...");
   display.display();
 
 >>>>>>> 5bdd953 (updated.)
