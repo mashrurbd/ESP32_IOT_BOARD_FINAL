@@ -18,6 +18,25 @@ void lcdWr(int x, int y, int ts, String m)
   display.display();
 }
 
+// Modified lcd_i2c function
+void lcd_i2c(int x, int y, String m) {
+  static String previousMessages[4] = {"", "", "", ""};  // Adjust the array size based on your display
+
+  // Set cursor to the position
+  lcd.setCursor(x, y);
+
+  // If the message is different from the previous one, update the display
+  if (previousMessages[y] != m) {
+    lcd.print("                "); // Clear the previous message (Assuming 16 characters wide display)
+    lcd.setCursor(x, y);
+    lcd.print(m);
+
+    // Update the previous message
+    previousMessages[y] = m;
+  }
+}
+
+
 // This function sends Arduino's up time every second to Virtual Pin (5) and shows it to the OLED Display
 void sendSensor()
 {
@@ -65,56 +84,59 @@ void printLocalTime()
   
   //Clear Display
   display.clearDisplay();
+  float t = dht.readTemperature();
   
   
   //Display Time
   display.setCursor(5,5);
 
-  if ((ssint > 33) || (ssint < 30))
+  if (ssint%2==0)
   {
-    display.setTextSize(2);
-    display.print(""+String(timeWeekDay)+"");
-    display.setCursor(5,25);
-    display.setTextSize(1);
-    display.print(""+String(dddd)+" "+String(mmmm)+" "+String(yyyy)+"");
-    display.setCursor(5,45);
-    display.setTextSize(2);
-    if (ssint%2==0)
-    {
-      display.print(""+String(hh)+":"+String(mm)+":"+String(ss)+"");
-      display.drawRoundRect(1,1,126,62,5,WHITE);
-    }
-    else 
-    {
-      display.print(""+String(hh)+" "+String(mm)+" "+String(ss)+"");
-      display.drawRoundRect(1,1,126,64,5,BLACK);
-
-    }
-    display.display();
-
+    // lcd.clear();
+    lcd_i2c(0,0,""+String(timeWeekDay)+"");
+    lcd_i2c(0,1,""+String(dddd)+" "+String(mmmm)+" "+String(yyyy)+"");
+    lcd_i2c(0,2,""+String(hh)+":"+String(mm)+":"+String(ss)+"");
+    lcd_i2c(0,3,"Temp: "+String(t)+" C");
+    // bigNumberLCD.print(""+String(hh)+":"+String(mm)+":"+String(ss)+"");
   }
-  else
+  else 
   {
-    //read temperature and humidity
-    float t = dht.readTemperature();
-    //Clear Display
-    display.clearDisplay();
+    // lcd.clear();
+    lcd_i2c(0,0,""+String(timeWeekDay)+"");
+    lcd_i2c(0,1,""+String(dddd)+" "+String(mmmm)+" "+String(yyyy)+"");
+    lcd_i2c(0,2,""+String(hh)+" "+String(mm)+" "+String(ss)+"");
+    lcd_i2c(0,3,"Temp: "+String(t)+" C");
+  }
+
+  
+
+  // if ((ssint > 33) || (ssint < 30))
+  // {
+
+    // display.setTextSize(2);
+    // display.print(""+String(timeWeekDay)+"");
+    // display.setCursor(5,25);
+    // display.setTextSize(1);
+    // display.print(""+String(dddd)+" "+String(mmmm)+" "+String(yyyy)+"");
+    // display.setCursor(5,45);
+    // display.setTextSize(2);
+    // if (ssint%2==0)
+    // {
+    //   display.print(""+String(hh)+":"+String(mm)+":"+String(ss)+"");
+    //   display.drawRoundRect(1,1,126,62,5,WHITE);
+    // }
+    // else 
+    // {
+    //   display.print(""+String(hh)+" "+String(mm)+" "+String(ss)+"");
+    //   display.drawRoundRect(1,1,126,64,5,BLACK);
+
+    // }
+    // display.display();
+
+
     
-    //Display Temperature
-    display.setTextSize(1);
-    display.setCursor(0,0);
-    display.print("Temperature: ");
-    display.setTextSize(2);
-    display.setCursor(0,10);
-    display.print(t);
-    display.print(" ");
-    display.setTextSize(1);
-    display.cp437(true);
-    display.write(167);
-    display.setTextSize(2);
-    display.print("C");
-    display.display();
-  }
+  // }
+  
 }
 
 // Blynk App write listeners
@@ -122,11 +144,10 @@ void printLocalTime()
 BLYNK_CONNECTED()
 {
   display.clearDisplay();
-  display.drawBitmap(0, 0,  ok_conn, 128, 64, 1);
-  display.display();
-  delay(1000);
-  display.clearDisplay();
+  // lcdWr(30,30,1,"Syncing...");
+  lcd.print("Syncing time...");
   Blynk.syncAll();  
+  display.clearDisplay();
   // Start the time sync
   t_timer.setInterval(1000L, printLocalTime);
   cblynk(".::' ----------------- '::.");
@@ -228,9 +249,12 @@ BLYNK_WRITE(V0)
   }
 }
 
+
 void setup() {
   // Begin Serial
   Serial.begin(115200);
+  lcd.init();
+  lcd.backlight();
 
   // Setting the time
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
@@ -243,24 +267,25 @@ void setup() {
   pinMode(MCU_4,OUTPUT);
   pinMode(BUZZER,OUTPUT);
   // For push Buttons
-  pinMode(sw_a, INPUT);
-  pinMode(sw_b, INPUT);
 
 
   dht.begin();
+  initSD();
 
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println(F("SSD1306 allocation failed"));
     for(;;);
   }
-  delay(1000);
+  delay(10);
   display.clearDisplay();
   display.setTextColor(WHITE);
   display.setCursor(30,30);
   display.setTextSize(2);
   // display.drawBitmap
-  display.print("(*_*)");
+  display.print("Hello!");
   display.display();
+
+  
 
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
 
@@ -284,4 +309,6 @@ void loop() {
   timer.run();
   // Time's timer
   t_timer.run();
+  // Listen to PUSH BUTTONS
+  
 }
