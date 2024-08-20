@@ -16,6 +16,12 @@
 #include <DHT.h>
 #include <time.h>
 #include <LiquidCrystal_I2C.h>
+<<<<<<< HEAD
+=======
+#include <AsyncDelay.h>
+
+AsyncDelay samplingInterval;
+>>>>>>> 5bdd953 (updated.)
 LiquidCrystal_I2C lcd(0x27,20,4); 
 
 
