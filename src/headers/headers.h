@@ -12,6 +12,8 @@
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
 #include <time.h>
+#include <PushButton.h>
+#include <GSheet32.h>
 
 // SD Card Server Headers 
 // #include <SD.h>
@@ -24,8 +26,10 @@
 #define MCU_3 18
 #define MCU_4 19
 #define BUZZER 2
-#define sw_a 22
-#define sw_b 23
+
+// Push button library
+PushButton sw_a_pb(22);
+
 
 
 
@@ -41,6 +45,8 @@ BlynkTimer t_timer;
 BlynkTimer logger_timer;
 
 
+// Google Sheet datalogger
+GSheet32 Sheet("AKfycbwXtZRUuAW2Q2DVGdVypIs8gIoPhM0yZatVYHUJmOxT9uRgUcPmP-S2OcU1pviUkz8");
 
 // WiFi credentials.
 // Set password to "" for open networks.
@@ -48,6 +54,6 @@ char ssid[] = "Cloud9";
 char pass[] = "khliansp";
 
 // Time Credentials
-const char* ntpServer = "time.google.com";
+const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 21600;
 const int   daylightOffset_sec = 0;

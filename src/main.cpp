@@ -38,6 +38,20 @@ void sendSensor()
   }
 }
 
+
+// Backup to google sheets
+void backupToGS()
+{
+  float t = dht.readTemperature();
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.drawRoundRect(5,5,118,58,7,WHITE);
+  display.setCursor(25,30);
+  display.print("Backing up...");
+  display.display();
+  Serial.println("SW_A_PB Clicked.");
+  Sheet.sendData(""+String(t)+"");
+}
 // print TIme to OLED
 void printLocalTime()
 {
@@ -62,6 +76,7 @@ void printLocalTime()
   strftime(mmmm,10, "%B", &timeinfo);
   strftime(yyyy,10, "%Y", &timeinfo);
   int ssint = atoi(ss);
+  int mmint = atoi(mm);
   
   //Clear Display
   display.clearDisplay();
@@ -70,7 +85,7 @@ void printLocalTime()
   //Display Time
   display.setCursor(5,5);
 
-// (ssint > 33) || (ssint < 30)
+
   if ((ssint > 33) || (ssint < 30))
   {
     display.setTextSize(2);
@@ -119,6 +134,13 @@ void printLocalTime()
     display.print("C");
     display.display();
   }
+
+
+  // Backup to google drive every 2 mins
+  // if ((mmint%2==0) && (ssint==0))
+  // {
+  //   backupToGS();
+  // }
 }
 
 
@@ -234,6 +256,8 @@ BLYNK_WRITE(V0)
   }
 }
 
+
+
 void setup() {
   // Begin Serial
   Serial.begin(115200);
@@ -243,14 +267,15 @@ void setup() {
   // LCD Code 
   pinMode(LED_BUILTIN,OUTPUT);
   // pinMode Declaration
+
+  sw_a_pb.setActiveLogic(LOW);
   pinMode(MCU_1,OUTPUT);
   pinMode(MCU_2,OUTPUT);
   pinMode(MCU_3,OUTPUT);
   pinMode(MCU_4,OUTPUT);
   pinMode(BUZZER,OUTPUT);
   // For push Buttons
-  pinMode(sw_a, INPUT);
-  pinMode(sw_b, INPUT);
+  pinMode(22, INPUT);
 
 
   dht.begin();
@@ -290,4 +315,12 @@ void loop() {
   timer.run();
   // Time's timer
   t_timer.run();
+
+  // Push button things
+  sw_a_pb.update();
+	
+	if (sw_a_pb.isClicked())
+	{
+		backupToGS();
+	}
 }
