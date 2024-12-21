@@ -1,7 +1,14 @@
 #include <headers/headers.h>
 #include <logos/boot.h>
+#include <logos/afif.h>
 #include <logos/somoy.h>
 #include <logos/ok_conn.h>
+
+#define MAX_PING 300  // Maximum ping time for the speedometer (ms)
+const char* test_host = "www.google.com";  // Test server
+
+// Global variables
+float pingTime = 0.0;
 
 // Write to Blynk String 
 void cblynk(String msg)
@@ -9,6 +16,84 @@ void cblynk(String msg)
   Blynk.virtualWrite(V0, msg);
 }
 
+// Function to send HTTP request and measure ping
+float measurePing() {
+  WiFiClient client;
+  unsigned long start, stop;
+
+  start = millis();
+  if (!client.connect(test_host, 80)) {
+    Serial.println("Connection failed");
+    return MAX_PING;  // Return max ping if the connection fails
+  }
+  stop = millis();
+
+  client.stop();
+  float iii = stop - start;
+  cblynk("Ping: " + String(iii, 1) + " ms");
+  return stop - start;  // Calculate the ping time in milliseconds
+}
+
+
+
+
+// Function to display an analog speedometer on the OLED
+void displaySpeedometer(float ping) {
+  display.clearDisplay();
+
+  // Parameters for the speedometer
+  const int centerX = 32;  // Center of the circle (left side of the screen)
+  const int centerY = 32;  // Center of the circle (vertically centered)
+  const int radius = 30;   // Radius of the speedometer
+  const int tickLength = 5; // Length of the ticks (teeth)
+  const int teethCount = 21; // Number of ticks on the circle
+
+  // Draw ticks (teeth) along the circle
+  for (int i = 0; i <= teethCount; i++) {
+    float angle = radians(360.0 / teethCount * i);      // Angle for each tick
+    int xOuter = centerX + cos(angle) * radius;        // Outer endpoint X
+    int yOuter = centerY - sin(angle) * radius;        // Outer endpoint Y
+    int xInner = centerX + cos(angle) * (radius - tickLength); // Inner endpoint X
+    int yInner = centerY - sin(angle) * (radius - tickLength); // Inner endpoint Y
+    display.drawLine(xOuter, yOuter, xInner, yInner, WHITE);   // Draw the tick
+  }
+
+  // Draw the needle
+  float needleAngle = map(ping, 0, MAX_PING, 0, 360);  // Map ping to needle angle
+  float needleRad = radians(needleAngle);             // Convert to radians
+  int xNeedle = centerX + cos(needleRad) * (radius - tickLength); // Needle endpoint X
+  int yNeedle = centerY - sin(needleRad) * (radius - tickLength); // Needle endpoint Y
+  display.drawLine(centerX, centerY, xNeedle, yNeedle, WHITE);    // Draw the needle
+
+  // Display ping value on the right side
+  display.setCursor(70, 15); // Position on the right
+  display.setTextSize(1);
+  display.print("RTT");
+  display.setCursor(70, 30); // Larger text for the value
+  display.setTextSize(2);
+  display.print(ping, 0); // Show rounded ping value
+  display.setCursor(70, 50); // Units next to the value
+  display.setTextSize(1);
+  display.print("ms");
+
+  // Update the display
+  display.display();
+
+  delay(5000);
+  timer.enableAll();
+  t_timer.enableAll();
+}
+
+
+
+// Function to measure and update the speedometer
+void updateSpeedometer() {
+  timer.disableAll();
+  t_timer.disableAll();
+  pingTime = measurePing(); 
+  // cblynk("Ping: " + String(pingTime, 1) + " ms");
+  displaySpeedometer(pingTime);  // Update OLED
+}
 void lcdWr(int x, int y, int ts, String m)
 {
   display.clearDisplay();
@@ -160,6 +245,7 @@ BLYNK_CONNECTED()
   cblynk(".::' ----------------- '::.");
   cblynk(".::' SCADA Server by Afif, Copyright: Mashrur Mohsin Afif. '::.");
   cblynk("[i] Synchronized to server values.");
+  updateSpeedometer();
 }
 // LIGHT @ V1
 BLYNK_WRITE(V1)
@@ -250,6 +336,11 @@ BLYNK_WRITE(V0)
   {
     cblynk("Free memory: "+String(ESP.getFreeHeap())+"");
   }
+  else if (cmd=="/ping")
+  {
+    
+    updateSpeedometer();
+  }
   else 
   {
     cblynk("Invalid command, send /help for a list of available commands.");
@@ -289,8 +380,9 @@ void setup() {
   display.setTextColor(WHITE);
   display.setCursor(30,30);
   display.setTextSize(2);
-  // display.drawBitmap
-  display.print("(*_*)");
+  display.drawBitmap(0, 0,  afif, 128, 64, 1);
+
+  // display.print("(*_*)");
   display.display();
 
   Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
