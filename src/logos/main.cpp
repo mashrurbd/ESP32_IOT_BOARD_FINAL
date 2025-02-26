@@ -1,0 +1,448 @@
+#include <headers/headers.h>
+#include <logos/boot.h>
+#include <logos/afif.h>
+#include <logos/somoy.h>
+#include <logos/ok_conn.h>
+
+#define MAX_PING 300  // Maximum ping time for the speedometer (ms)
+const char* test_host = "www.google.com";  // Test server
+
+// Global variables
+float pingTime = 0.0;
+
+// Write to Blynk String 
+void cblynk(String msg)
+{
+  Blynk.virtualWrite(V0, msg);
+}
+
+// Function to show wallpaper
+void displayWallpaperWithAnimation(const uint8_t* wallpaper) {
+    unsigned long startTime = millis();
+    int xOffset = 0;
+    
+    while (millis() - startTime < 10000) { // Run for 10 seconds
+        display.clearDisplay();
+        
+        // Scrolling animation effect
+        display.drawBitmap(xOffset, 0, wallpaper, 128, 64, WHITE);
+        display.display();
+        
+        xOffset += 5; // Move image to the right
+        if (xOffset > 128) xOffset = -128; // Reset position for looping effect
+        
+        delay(100);
+    }
+    
+    display.clearDisplay();
+    display.drawBitmap(0, 0, wallpaper, 128, 64, WHITE);
+    display.display();
+}
+
+
+// Function to send HTTP request and measure ping
+float measurePing() {
+  WiFiClient client;
+  unsigned long start, stop;
+
+  start = millis();
+  if (!client.connect(test_host, 80)) {
+    Serial.println("Connection failed");
+    return MAX_PING;  // Return max ping if the connection fails
+  }
+  stop = millis();
+
+  client.stop();
+  float iii = stop - start;
+  cblynk("Ping: " + String(iii, 1) + " ms");
+  return stop - start;  // Calculate the ping time in milliseconds
+}
+
+
+
+
+// Function to display an analog speedometer on the OLED
+void displaySpeedometer(float ping) {
+  display.clearDisplay();
+
+  // Parameters for the speedometer
+  const int centerX = 32;  // Center of the circle (left side of the screen)
+  const int centerY = 32;  // Center of the circle (vertically centered)
+  const int radius = 30;   // Radius of the speedometer
+  const int tickLength = 5; // Length of the ticks (teeth)
+  const int teethCount = 21; // Number of ticks on the circle
+
+  // Draw ticks (teeth) along the circle
+  for (int i = 0; i <= teethCount; i++) {
+    float angle = radians(360.0 / teethCount * i);      // Angle for each tick
+    int xOuter = centerX + cos(angle) * radius;        // Outer endpoint X
+    int yOuter = centerY - sin(angle) * radius;        // Outer endpoint Y
+    int xInner = centerX + cos(angle) * (radius - tickLength); // Inner endpoint X
+    int yInner = centerY - sin(angle) * (radius - tickLength); // Inner endpoint Y
+    display.drawLine(xOuter, yOuter, xInner, yInner, WHITE);   // Draw the tick
+  }
+
+  // Draw the needle
+  float needleAngle = map(ping, 0, MAX_PING, 0, 360);  // Map ping to needle angle
+  float needleRad = radians(needleAngle);             // Convert to radians
+  int xNeedle = centerX + cos(needleRad) * (radius - tickLength); // Needle endpoint X
+  int yNeedle = centerY - sin(needleRad) * (radius - tickLength); // Needle endpoint Y
+  display.drawLine(centerX, centerY, xNeedle, yNeedle, WHITE);    // Draw the needle
+
+  // Display ping value on the right side
+  display.setCursor(70, 15); // Position on the right
+  display.setTextSize(1);
+  display.print("RTT");
+  display.setCursor(70, 30); // Larger text for the value
+  display.setTextSize(2);
+  display.print(ping, 0); // Show rounded ping value
+  display.setCursor(70, 50); // Units next to the value
+  display.setTextSize(1);
+  display.print("ms");
+
+  // Update the display
+  display.display();
+
+  delay(5000);
+  timer.enableAll();
+  t_timer.enableAll();
+}
+
+
+
+// Function to measure and update the speedometer
+void updateSpeedometer() {
+  timer.disableAll();
+  t_timer.disableAll();
+  pingTime = measurePing(); 
+  // cblynk("Ping: " + String(pingTime, 1) + " ms");
+  displaySpeedometer(pingTime);  // Update OLED
+}
+void lcdWr(int x, int y, int ts, String m)
+{
+  display.clearDisplay();
+  display.setTextSize(ts);
+  display.setCursor(x,y);
+  display.print(m);
+  display.display();
+}
+
+// This function sends Arduino's up time every second to Virtual Pin (5) and shows it to the OLED Display
+void sendSensor()
+{
+  // delay(2000);
+
+  //read temperature and humidity
+  float t = dht.readTemperature();
+
+  if (isnan(t)) 
+  {
+    Blynk.virtualWrite(V5, 0);
+    return;
+  }
+  else 
+  {
+    Blynk.virtualWrite(V5, t);
+    return;
+  }
+}
+
+
+// Backup to google sheets
+void backupToGS()
+{
+  float t = dht.readTemperature();
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.drawRoundRect(5,5,118,58,7,WHITE);
+  display.setCursor(25,30);
+  display.print("Backing up...");
+  display.display();
+  Serial.println("SW_A_PB Clicked.");
+  Sheet.sendData(""+String(t)+"");
+}
+// print TIme to OLED
+void printLocalTime()
+{
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return;
+  }
+
+  char hh[3];
+  char mm[3];
+  char ss[3];
+  char timeWeekDay[10];
+  char dddd[3];
+  char mmmm[10];
+  char yyyy[5];
+  strftime(hh,3, "%I", &timeinfo);
+  strftime(mm,3, "%M", &timeinfo);
+  strftime(ss,3, "%S", &timeinfo);
+  strftime(timeWeekDay,10, "%A", &timeinfo);
+  strftime(dddd,3, "%d", &timeinfo);
+  strftime(mmmm,10, "%B", &timeinfo);
+  strftime(yyyy,10, "%Y", &timeinfo);
+  int ssint = atoi(ss);
+  int mmint = atoi(mm);
+  
+  //Clear Display
+  display.clearDisplay();
+  
+  
+  //Display Time
+  display.setCursor(5,5);
+
+
+  if ((ssint > 33) || (ssint < 30))
+  {
+    display.setTextSize(2);
+    display.print(""+String(timeWeekDay)+"");
+    display.setCursor(5,25);
+    display.setTextSize(1);
+    display.print(""+String(dddd)+" "+String(mmmm)+" "+String(yyyy)+"");
+    display.setCursor(5,45);
+    display.setTextSize(2);
+    if (ssint%2==0)
+    {
+      display.print(""+String(hh)+":"+String(mm)+":"+String(ss)+"");
+      display.drawRoundRect(1,1,126,62,5,WHITE);
+    }
+    else 
+    {
+      display.print(""+String(hh)+" "+String(mm)+" "+String(ss)+"");
+      display.drawRoundRect(1,1,126,64,5,BLACK);
+
+    }
+    display.display();
+
+  }
+  else
+  {
+    //read temperature and humidity
+    float t = dht.readTemperature();
+    //Clear Display
+    display.clearDisplay();
+    display.drawRoundRect(1,1,126,62,5,WHITE);
+
+
+    
+    //Display Temperature
+    display.setTextSize(1);
+    display.setCursor(5,10);
+    display.print("Temperature");
+    display.setTextSize(2);
+    display.setCursor(10,30);
+    display.print(t);
+    display.print(" ");
+    display.setTextSize(1);
+    display.cp437(true);
+    display.write(176);
+    display.setTextSize(2);
+    display.print("C");
+    display.display();
+  }
+
+
+  // Backup to google drive every 2 mins
+  // if ((mmint%2==0) && (ssint==0))
+  // {
+  //   backupToGS();
+  // }
+
+  // Show wallpaper in every 2 mins
+  if ((mmint%2==0) && (ssint==0))
+  {
+    displayWallpaperWithAnimation(afif);
+  }
+}
+
+
+
+// Blynk App write listeners
+// Get the previous states of the pins
+BLYNK_CONNECTED()
+{
+  display.clearDisplay();
+  display.drawBitmap(0, 0,  ok_conn, 128, 64, 1);
+  display.display();
+  delay(1000);
+  display.clearDisplay();
+  Blynk.syncAll();  
+  // Start the time sync
+  t_timer.setInterval(1000L, printLocalTime);
+  cblynk(".::' ----------------- '::.");
+  cblynk(".::' SCADA Server by Afif, Copyright: Mashrur Mohsin Afif. '::.");
+  cblynk("[i] Synchronized to server values.");
+  updateSpeedometer();
+}
+// LIGHT @ V1
+BLYNK_WRITE(V1)
+{
+  int pinValue = param.asInt(); 
+  Serial.print("HOME SCADA V1: ");
+  cblynk("[i] SCADA_CMD: APPLIANCE 1: "+String(pinValue)+"");
+  Serial.println(pinValue);
+  digitalWrite(BUZZER,pinValue);
+}
+
+// LIGHT @ V2
+BLYNK_WRITE(V2)
+{
+  int pinValue = param.asInt(); 
+  Serial.print("HOME SCADA V2: ");
+  cblynk("[i] SCADA_CMD: APPLIANCE 2: "+String(pinValue)+"");
+  Serial.println(pinValue);
+  digitalWrite(MCU_2,!pinValue);
+}
+
+// LIGHT @ V3
+BLYNK_WRITE(V3)
+{
+  int pinValue = param.asInt(); 
+  Serial.print("HOME SCADA V3: ");
+  cblynk("[i] SCADA_CMD: APPLIANCE 3: "+String(pinValue)+"");
+  Serial.println(pinValue);
+  digitalWrite(MCU_3,!pinValue);
+}
+
+// LIGHT @ V4
+BLYNK_WRITE(V4)
+{
+  int pinValue = param.asInt(); 
+  Serial.print("HOME SCADA V4: ");
+  cblynk("[i] SCADA_CMD: APPLIANCE 4: "+String(pinValue)+"");
+  Serial.println(pinValue);
+  digitalWrite(MCU_4,!pinValue);
+}
+
+// For over the internet terminal thing 
+BLYNK_WRITE(V0)
+{
+  //read temperature and humidity
+  float t = dht.readTemperature();
+  String cmd = param.asString(); 
+  Serial.print("[i] Got command: "+cmd+"");
+
+  if (cmd=="/device mac")
+  {
+    cblynk("MAC address: "+WiFi.BSSIDstr()+"");
+  }
+  else if (cmd=="/device reboot")
+  {
+    cblynk("Rebooting device in 5 seconds...");
+    for (int x=5;x>=1;x--)
+    {
+      delay(1000*x);
+      cblynk("Time remaining: "+String(x)+" second(s).");
+      if (x==1)
+      {
+        ESP.restart();
+      }
+    }
+  }
+  else if (cmd=="/t")
+  {
+    cblynk("Temperature: "+String(t)+" degree Celsius.");
+  }
+  else if (cmd=="/h")
+  {
+    cblynk("Humidity sensor is disabled.");
+  }
+  else if (cmd=="/wifi ip")
+  {
+    cblynk("WiFi Local address: "+WiFi.localIP().toString()+"");
+  }
+  else if (cmd=="/wifi strength")
+  {
+    cblynk("WiFi RSSI: "+String(WiFi.RSSI())+" dB");
+  }
+  else if (cmd=="/help")
+  {
+    cblynk("List of available commands:\n /device mac: Shows MAC address of the device. \n /device reboot: Reboots the device in 5 seconds. \n /temp : Shows temperature recorded in degree Celsius. \n /humidity : Shows humidity in percentage. \n /wifi ip : Shows local IP address of the device. \n /wifi strength: Shows the WiFi strength in dB.");
+  }
+  else if (cmd=="/memory")
+  {
+    cblynk("Free memory: "+String(ESP.getFreeHeap())+"");
+  }
+  else if (cmd=="/ping")
+  {
+    
+    updateSpeedometer();
+  }
+  else 
+  {
+    cblynk("Invalid command, send /help for a list of available commands.");
+  }
+}
+
+
+
+void setup() {
+  // Begin Serial
+  Serial.begin(115200);
+
+  // Setting the time
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  // LCD Code 
+  pinMode(LED_BUILTIN,OUTPUT);
+  // pinMode Declaration
+
+  sw_a_pb.setActiveLogic(LOW);
+  pinMode(MCU_1,OUTPUT);
+  pinMode(MCU_2,OUTPUT);
+  pinMode(MCU_3,OUTPUT);
+  pinMode(MCU_4,OUTPUT);
+  pinMode(BUZZER,OUTPUT);
+  // For push Buttons
+  pinMode(22, INPUT);
+
+
+  dht.begin();
+
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;);
+  }
+  
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  display.setCursor(30,30);
+  display.setTextSize(2);
+  display.drawBitmap(0, 0,  afif, 128, 64, 1);
+
+  // display.print("(*_*)");
+  display.display();
+
+  Blynk.begin(BLYNK_AUTH_TOKEN, ssid, pass);
+
+  timer.setInterval(2000L, sendSensor);
+
+
+  
+
+
+
+  // check_if_folders_exists();
+  cblynk("[i] Connected to server.");
+  cblynk("[i] LOCAL_IP: "+WiFi.localIP().toString()+"");
+  cblynk("[i] MAC_ADDRESS: "+WiFi.BSSIDstr()+"");
+  cblynk("[i] FTP Server Status: OKAY, Running.");
+}
+
+void loop() {
+  Blynk.run();
+  // runs BlynkTimer
+  timer.run();
+  // Time's timer
+  t_timer.run();
+
+  // Push button things
+  sw_a_pb.update();
+	
+	if (sw_a_pb.isClicked())
+	{
+		backupToGS();
+	}
+}
