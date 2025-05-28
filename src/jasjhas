@@ -3,6 +3,7 @@
 #include <logos/afif.h>
 #include <logos/somoy.h>
 #include <logos/ok_conn.h>
+#include <logos/raider.h>
 
 #define MAX_PING 300  // Maximum ping time for the speedometer (ms)
 const char* test_host = "www.google.com";  // Test server
@@ -15,6 +16,30 @@ void cblynk(String msg)
 {
   Blynk.virtualWrite(V0, msg);
 }
+
+// Function to show wallpaper
+void displayWallpaperWithAnimation(const uint8_t* wallpaper) {
+    unsigned long startTime = millis();
+    int xOffset = 0;
+    
+    while (millis() - startTime < 10000) { // Run for 10 seconds
+        display.clearDisplay();
+        
+        // Scrolling animation effect
+        display.drawBitmap(xOffset, 0, wallpaper, 128, 64, WHITE);
+        display.display();
+        
+        xOffset += 5; // Move image to the right
+        if (xOffset > 128) xOffset = -128; // Reset position for looping effect
+        
+        delay(100);
+    }
+    
+    display.clearDisplay();
+    display.drawBitmap(0, 0, wallpaper, 128, 64, WHITE);
+    display.display();
+}
+
 
 // Function to send HTTP request and measure ping
 float measurePing() {
@@ -226,6 +251,12 @@ void printLocalTime()
   // {
   //   backupToGS();
   // }
+
+  // Show wallpaper in every 2 mins
+  if ((mmint%2==0) && (ssint==0))
+  {
+    displayWallpaperWithAnimation(afif);
+  }
 }
 
 
@@ -340,6 +371,13 @@ BLYNK_WRITE(V0)
   {
     
     updateSpeedometer();
+  }
+  else if (cmd="be wicked")
+  {
+    display.clearDisplay();
+    display.drawBitmap(0, 0,  raider, 128, 64, 1);
+    display.display();
+    delay(5000);
   }
   else 
   {

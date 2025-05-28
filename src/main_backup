@@ -1,4 +1,77 @@
 
+void printLocalTime()
+{
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Failed to obtain time");
+    return;
+  }
+
+  // Safely sized buffers (include space for null terminators)
+  char hh[4];               // Hours (2 digits + null)
+  char mm[4];               // Minutes
+  char ss[4];               // Seconds
+  char timeWeekDay[12];     // e.g., "Wednesday"
+  char dddd[4];             // Day of month
+  char mmmm[12];            // Month
+  char yyyy[5];             // Year
+
+  // Format time parts
+  strftime(hh, sizeof(hh), "%H", &timeinfo);  // 24-hour format
+  strftime(mm, sizeof(mm), "%M", &timeinfo);
+  strftime(ss, sizeof(ss), "%S", &timeinfo);
+  strftime(timeWeekDay, sizeof(timeWeekDay), "%A", &timeinfo);
+  strftime(dddd, sizeof(dddd), "%d", &timeinfo);
+  strftime(mmmm, sizeof(mmmm), "%B", &timeinfo);
+  strftime(yyyy, sizeof(yyyy), "%Y", &timeinfo);
+
+  int ssint = atoi(ss);
+  int mmint = atoi(mm);
+
+  // Display Time
+  if ((ssint > 33) || (ssint < 30)) {
+    u8g2.clearBuffer();					
+    u8g2.setFont(u8g2_font_tenstamps_mu);	
+
+    char timeStr[16];
+    if (ssint % 2 == 0) {
+      // Blinking effect using colon
+      sprintf(timeStr, "%s:%s:%s", hh, mm, ss);
+    } else {
+      sprintf(timeStr, "%s %s %s", hh, mm, ss);
+    }
+
+    u8g2.drawStr(0, 10, timeStr);  
+    u8g2.sendBuffer();
+  }
+  // Display Temperature
+  else {
+    float t = dht.readTemperature();
+
+    u8g2.clearBuffer();  
+    
+    u8g2.drawRFrame(1, 1, 126, 62, 5);  // Rounded rectangle frame
+    
+    u8g2.setFont(u8g2_font_6x10_tf);    
+    u8g2.drawStr(5, 10, "Temperature");
+    
+    u8g2.setFont(u8g2_font_fub14_tf);  
+
+    char tempStr[10];
+    sprintf(tempStr, "%.1f", t);
+    u8g2.drawStr(10, 35, tempStr);
+    
+    u8g2.setFont(u8g2_font_fub14_tf);
+    u8g2.drawUTF8(70, 35, "°C");  
+    
+    u8g2.sendBuffer();
+  }
+}
+
+
+
+
+
 // print TIme to OLED
 void printLocalTime()
 {
