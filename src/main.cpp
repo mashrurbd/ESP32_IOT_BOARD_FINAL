@@ -6,6 +6,7 @@
 #define BLYNK_AUTH_TOKEN "m7YWUPmMqkCWHNBL9ut7NhyLBQ-9eR_y"
 
 #include <Arduino.h>
+#include "esp_heap_caps.h"
 #include <Wire.h>
 #include <U8g2lib.h>
 #include <WiFiClientSecure.h>
@@ -13,7 +14,10 @@
 #include <DHT.h>
 #include <time.h>
 #include <PushButton.h>
-
+#include <FS.h>
+#include <SD.h>
+#include <WiFi.h>
+#include <Update.h>
 // -------------------- PINS & OBJECTS --------------------
 #define MCU_1 23
 #define MCU_2 5
@@ -22,6 +26,9 @@
 #define BUZZER 2
 #define DHTPIN 4
 #define DHTTYPE DHT11
+// Assume SD card CS pin defined as:
+#define SD_CS 5
+
 PushButton sw_a_pb(22);
 
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
@@ -46,16 +53,38 @@ unsigned long lastPingSent = 0;
 unsigned long startMillis;
 void printLocalTime();
 
+
 // -------------------- CALLBACK HELPER --------------------
 void cblynk(String msg) {
   Blynk.virtualWrite(V0, msg);
 }
 
-// -------------------- TERMINAL COMMANDS --------------------
+// Helper function to recursively print directory content on SD
+void printDir(File dir, int level) {
+  while (true) {
+    File entry = dir.openNextFile();
+    if (!entry) {
+      break;  // no more files
+    }
+    for (int i = 0; i < level; i++) cblynk("  ");
+    if (entry.isDirectory()) {
+      cblynk(String("[DIR] ") + entry.name());
+      printDir(entry, level + 1);
+    } else {
+      cblynk(String("[FILE] ") + entry.name() + " (" + String(entry.size()) + " bytes)");
+    }
+    entry.close();
+  }
+}
+
+
+
 BLYNK_WRITE(V0) {
   float t = dht.readTemperature();
+  float h = dht.readHumidity();
   String cmd = param.asString();
   cmd.trim();
+  cmd.toLowerCase();
 
   Serial.println("[i] Got command: " + cmd);
 
@@ -70,17 +99,23 @@ BLYNK_WRITE(V0) {
     }
     ESP.restart();
   } 
-  else if (cmd == "/t") {
-    cblynk("Temperature: " + String(t) + "°C");
+  else if (cmd == "/t" || cmd == "/temp" || cmd == "/temperature") {
+    cblynk("Temperature: " + String(t, 2) + " °C");
   } 
+  else if (cmd == "/h" || cmd == "/humidity") {
+    cblynk("Humidity: " + String(h, 2) + " %");
+  }
+  else if (cmd == "/th" || cmd == "/temp humidity") {
+    cblynk("Temp: " + String(t, 2) + " °C, Humidity: " + String(h, 2) + " %");
+  }
   else if (cmd == "/wifi ip") {
     cblynk("WiFi Local IP: " + WiFi.localIP().toString());
   } 
-  else if (cmd == "/wifi strength") {
-    cblynk("WiFi RSSI: " + String(WiFi.RSSI()) + " dB");
+  else if (cmd == "/wifi strength" || cmd == "/wifi rssi") {
+    cblynk("WiFi RSSI: " + String(WiFi.RSSI()) + " dBm");
   } 
-  else if (cmd == "/memory") {
-    cblynk("Free Heap: " + String(ESP.getFreeHeap()));
+  else if (cmd == "/memory" || cmd == "/freeheap") {
+    cblynk("Free Heap Memory: " + String(ESP.getFreeHeap()) + " bytes");
   } 
   else if (cmd == "/uptime") {
     unsigned long uptimeSec = (millis() - startMillis) / 1000;
@@ -89,7 +124,7 @@ BLYNK_WRITE(V0) {
     int secs = uptimeSec % 60;
     cblynk("Uptime: " + String(hrs) + "h " + String(mins) + "m " + String(secs) + "s");
   } 
-  else if (cmd == "/status") {
+  else if (cmd == "/status" || cmd == "/relays") {
     String res = "Relay Status:\n";
     for (int i = 0; i < 4; i++) {
       res += String(labels[i]) + ": " + (states[i] ? "ON" : "OFF") + "\n";
@@ -102,8 +137,8 @@ BLYNK_WRITE(V0) {
     cblynk("CPU Freq: " + String(ESP.getCpuFreqMHz()) + " MHz");
     cblynk("Flash Size: " + String(ESP.getFlashChipSize() / 1024.0 / 1024.0, 2) + " MB");
     cblynk("Sketch Size: " + String(ESP.getSketchSize() / 1024.0, 1) + " KB");
+    cblynk("SDK Version: " + String(esp_get_idf_version()));
   }
-
   else if (cmd == "/relay toggle all") {
     for (int i = 0; i < 4; i++) {
       states[i] = !states[i];
@@ -111,7 +146,6 @@ BLYNK_WRITE(V0) {
     }
     cblynk("All relays toggled.");
   }
-
   else if (cmd == "/relay off") {
     for (int i = 0; i < 4; i++) {
       states[i] = false;
@@ -119,7 +153,6 @@ BLYNK_WRITE(V0) {
     }
     cblynk("All relays turned OFF.");
   }
-
   else if (cmd == "/relay on") {
     for (int i = 0; i < 4; i++) {
       states[i] = true;
@@ -127,23 +160,50 @@ BLYNK_WRITE(V0) {
     }
     cblynk("All relays turned ON.");
   }
-
+  else if (cmd.startsWith("/relay on ")) {
+    int idx = cmd.substring(10).toInt() - 1;
+    if (idx >= 0 && idx < 4) {
+      states[idx] = true;
+      Blynk.virtualWrite(V1 + idx, 1);
+      cblynk(String(labels[idx]) + " turned ON.");
+    } else {
+      cblynk("Invalid relay number (1-4).");
+    }
+  }
+  else if (cmd.startsWith("/relay off ")) {
+    int idx = cmd.substring(11).toInt() - 1;
+    if (idx >= 0 && idx < 4) {
+      states[idx] = false;
+      Blynk.virtualWrite(V1 + idx, 0);
+      cblynk(String(labels[idx]) + " turned OFF.");
+    } else {
+      cblynk("Invalid relay number (1-4).");
+    }
+  }
+  else if (cmd.startsWith("/relay toggle ")) {
+    int idx = cmd.substring(13).toInt() - 1;
+    if (idx >= 0 && idx < 4) {
+      states[idx] = !states[idx];
+      Blynk.virtualWrite(V1 + idx, states[idx]);
+      cblynk(String(labels[idx]) + " toggled to " + (states[idx] ? "ON" : "OFF"));
+    } else {
+      cblynk("Invalid relay number (1-4).");
+    }
+  }
   else if (cmd == "/buzzer") {
     digitalWrite(BUZZER, HIGH);
     delay(500);
     digitalWrite(BUZZER, LOW);
     cblynk("Buzzer buzzed.");
   }
-
   else if (cmd == "/wifi reconnect") {
     cblynk("Reconnecting WiFi...");
     WiFi.disconnect();
     WiFi.begin(ssid, pass);
   }
-
   else if (cmd == "/screen flash") {
     for (int i = 0; i < 3; i++) {
-      u8g2.clear();
+      u8g2.clearBuffer();
       u8g2.sendBuffer();
       delay(300);
       printLocalTime();
@@ -151,23 +211,171 @@ BLYNK_WRITE(V0) {
     }
     cblynk("OLED flashed 3 times.");
   }
+  else if (cmd == "/reset reason") {
+    cblynk("Reset Reason: " + String(esp_reset_reason()));
+  }
+  else if (cmd == "/sdk version") {
+    cblynk("SDK Version: " + String(esp_get_idf_version()));
+  }
+
+  // --- Advanced WiFi scan ---
+  else if (cmd == "/wifi scan") {
+    cblynk("Scanning WiFi networks...");
+    int n = WiFi.scanNetworks();
+    if (n == 0) {
+      cblynk("No WiFi networks found.");
+    } else {
+      for (int i = 0; i < n; ++i) {
+        cblynk(String(i+1) + ": " + WiFi.SSID(i) + " (" + WiFi.RSSI(i) + " dBm) " + (WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "Open" : "Secured"));
+      }
+    }
+    WiFi.scanDelete();
+  }
+
+  // --- OTA update trigger ---
+  else if (cmd == "/ota start") {
+    cblynk("OTA update mode started. Awaiting upload...");
+  }
+
+  // --- SD Card commands ---
+  else if (cmd == "/sd init") {
+    if (!SD.begin(SD_CS)) {
+      cblynk("SD card init failed!");
+    } else {
+      cblynk("SD card initialized.");
+    }
+  }
+  else if (cmd == "/sd list") {
+    if (!SD.begin(SD_CS)) {
+      cblynk("SD card not initialized. Use /sd init first.");
+    } else {
+      File root = SD.open("/");
+      cblynk("Files on SD:");
+      printDir(root, 0);
+      root.close();
+    }
+  }
+  else if (cmd.startsWith("/sd read ")) {
+    if (!SD.begin(SD_CS)) {
+      cblynk("SD card not initialized. Use /sd init first.");
+    } else {
+      String filename = cmd.substring(9);
+      if (SD.exists(filename)) {
+        File file = SD.open(filename, FILE_READ);
+        cblynk("Reading file: " + filename);
+        while (file.available()) {
+          cblynk(file.readStringUntil('\n'));
+        }
+        file.close();
+      } else {
+        cblynk("File not found: " + filename);
+      }
+    }
+  }
+  else if (cmd.startsWith("/sd delete ")) {
+    if (!SD.begin(SD_CS)) {
+      cblynk("SD card not initialized. Use /sd init first.");
+    } else {
+      String filename = cmd.substring(11);
+      if (SD.exists(filename)) {
+        SD.remove(filename);
+        cblynk("File deleted: " + filename);
+      } else {
+        cblynk("File not found: " + filename);
+      }
+    }
+  }
+  else if (cmd.startsWith("/sd write ")) {
+    if (!SD.begin(SD_CS)) {
+      cblynk("SD card not initialized. Use /sd init first.");
+    } else {
+      int splitIndex = cmd.indexOf('|');
+      if (splitIndex == -1) {
+        cblynk("Usage: /sd write filename|text");
+      } else {
+        String filename = cmd.substring(10, splitIndex);
+        String text = cmd.substring(splitIndex + 1);
+        File file = SD.open(filename, FILE_WRITE);
+        if (file) {
+          file.println(text);
+          file.close();
+          cblynk("Written to file: " + filename);
+        } else {
+          cblynk("Failed to open file: " + filename);
+        }
+      }
+    }
+  }
+
+  // --- Backup commands ---
+  else if (cmd == "/backup save") {
+    if (!SD.begin(SD_CS)) {
+      cblynk("SD card not initialized. Use /sd init first.");
+    } else {
+      File backup = SD.open("/backup.txt", FILE_WRITE);
+      if (!backup) {
+        cblynk("Failed to open backup file.");
+      } else {
+        for (int i = 0; i < 4; i++) {
+          backup.println(String(labels[i]) + ":" + (states[i] ? "1" : "0"));
+        }
+        backup.close();
+        cblynk("Backup saved to /backup.txt");
+      }
+    }
+  }
+  else if (cmd == "/backup load") {
+    if (!SD.begin(SD_CS)) {
+      cblynk("SD card not initialized. Use /sd init first.");
+    } else {
+      if (!SD.exists("/backup.txt")) {
+        cblynk("No backup file found.");
+      } else {
+        File backup = SD.open("/backup.txt");
+        while (backup.available()) {
+          String line = backup.readStringUntil('\n');
+          line.trim();
+          int colonIndex = line.indexOf(':');
+          if (colonIndex > 0) {
+            String label = line.substring(0, colonIndex);
+            String val = line.substring(colonIndex + 1);
+            for (int i = 0; i < 4; i++) {
+              if (label == labels[i]) {
+                states[i] = (val == "1");
+                Blynk.virtualWrite(V1 + i, states[i]);
+              }
+            }
+          }
+        }
+        backup.close();
+        cblynk("Backup loaded from /backup.txt");
+      }
+    }
+  }
 
   else if (cmd == "/help") {
     cblynk("Commands:\n"
            "/device mac\n/device reboot\n/device info\n"
-           "/t (temperature)\n/wifi ip\n/wifi strength\n/wifi reconnect\n"
+           "/t /temp /temperature\n/h /humidity\n/th /temp humidity\n"
+           "/wifi ip\n/wifi strength\n/wifi reconnect\n/wifi scan\n"
            "/relay on\n/relay off\n/relay toggle all\n"
+           "/relay on [1-4]\n/relay off [1-4]\n/relay toggle [1-4]\n"
+           "/memory\n/uptime\n/reset reason\n/sdk version\n"
            "/buzzer\n/screen flash\n"
-           "/memory\n/uptime\n/status\n/help");
-  }
-
+           "/sd init\n/sd list\n/sd read filename\n/sd write filename|text\n/sd delete filename\n"
+           "/backup save\n/backup load\n"
+           "/ota start");
+  } 
   else {
-    cblynk("Invalid command. Type /help.");
+    cblynk("Unknown command: " + cmd + ". Try /help.");
   }
 }
 
+
+
+
 // -------------------- APPLIANCE CONTROL --------------------
-BLYNK_WRITE(V1) { bool val = param.asInt(); if (val != states[0]) { states[0] = val; changedIndex = 0; newState = val; changeTimestamp = millis(); } }
+BLYNK_WRITE(V1) { bool val = param.asInt(); if (val != states[0]) { states[0] = val; changedIndex = 0; newState = val; changeTimestamp = millis(); digitalWrite(BUZZER, val); } }
 BLYNK_WRITE(V2) { bool val = param.asInt(); if (val != states[1]) { states[1] = val; changedIndex = 1; newState = val; changeTimestamp = millis(); } }
 BLYNK_WRITE(V3) { bool val = param.asInt(); if (val != states[2]) { states[2] = val; changedIndex = 2; newState = val; changeTimestamp = millis(); } }
 BLYNK_WRITE(V4) { bool val = param.asInt(); if (val != states[3]) { states[3] = val; changedIndex = 3; newState = val; changeTimestamp = millis(); } }
